@@ -3,7 +3,6 @@ package com.soft.controller;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -17,9 +16,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.soft.entity.Employee;
+import com.soft.exception.EmployeeNotFoundException;
 import com.soft.service.EmployeeService;
+import jakarta.validation.Valid;
 
 @RestController
 public class EmployeeController {
@@ -33,52 +33,102 @@ public class EmployeeController {
 	}
 
 	@PostMapping("/save")
-	public ResponseEntity<Employee> createEmployee(@RequestBody Employee employee) {
-		Employee saveEmployee = employeeService.createEmployee(employee);
-		return new ResponseEntity<>(saveEmployee, HttpStatus.OK);
+	public ResponseEntity<?> createEmployee(@Valid @RequestBody Employee employee) {
+		try {
+			Employee savedEmployee = employeeService.createEmployee(employee);
+			return new ResponseEntity<>(savedEmployee, HttpStatus.CREATED);
+		} catch (Exception ex) {
+			throw new RuntimeException("Error while saving employee: " + ex.getMessage());
+		}
 	}
 
 	@GetMapping("/getAllEmployees")
-	public List<Employee> getAllEmployees() {
-		return employeeService.fetchAllEmployees();
+	public ResponseEntity<?> getAllEmployees() {
+		try {
+			List<Employee> employees = employeeService.fetchAllEmployees();
+			if (employees.isEmpty()) {
+				throw new EmployeeNotFoundException("No employees found in the database.");
+			}
+			return ResponseEntity.ok(employees);
+		} catch (EmployeeNotFoundException ex) {
+			throw ex; // handled by GlobalExceptionHandler
+		} catch (Exception ex) {
+			throw new RuntimeException("Error fetching employees: " + ex.getMessage());
+		}
 	}
 
 	@GetMapping("/getEmployee/{id}")
-	public Optional<Employee> getEmployeesById(@PathVariable Long id) {
-		Optional<Employee> employeeId = employeeService.fetchEmployeeById(id);
-		return employeeId;
+	public ResponseEntity<?> getEmployeeById(@PathVariable Long id) {
+		try {
+			Employee employee = employeeService.fetchEmployeeById(id)
+					.orElseThrow(() -> new EmployeeNotFoundException("Employee not found with id: " + id));
+			return ResponseEntity.ok(employee);
+		} catch (EmployeeNotFoundException ex) {
+			throw ex;
+		} catch (Exception ex) {
+			throw new RuntimeException("Error retrieving employee: " + ex.getMessage());
+		}
 	}
 
 	@PutMapping("/update/{id}")
-	public Employee updateEmployee(@PathVariable Long id, @RequestBody Employee employee) {
-		Employee updateEmployeeById = employeeService.updateEmployeeById(id, employee);
-		return updateEmployeeById;
+	public ResponseEntity<?> updateEmployee(@PathVariable Long id, @Valid @RequestBody Employee employee) {
+		try {
+			Employee updated = employeeService.updateEmployeeById(id, employee);
+			return ResponseEntity.ok(updated);
+		} catch (EmployeeNotFoundException ex) {
+			throw ex;
+		} catch (Exception ex) {
+			throw new RuntimeException("Error updating employee: " + ex.getMessage());
+		}
 	}
 
 	@PatchMapping("/updatePar/{id}")
-	public Employee updateEmployeePartially(@PathVariable Long id, @RequestBody Employee employee) {
-		Employee updateEmployeePartially = employeeService.updateEmployeePartially(id, employee);
-		return updateEmployeePartially;
+	public ResponseEntity<?> updateEmployeePartially(@PathVariable Long id, @RequestBody Employee employee) {
+		try {
+			Employee updated = employeeService.updateEmployeePartially(id, employee);
+			return ResponseEntity.ok(updated);
+		} catch (EmployeeNotFoundException ex) {
+			throw ex;
+		} catch (Exception ex) {
+			throw new RuntimeException("Error partially updating employee: " + ex.getMessage());
+		}
 	}
 
 	@DeleteMapping("/delete/{id}")
-	public String deleteEmployee(@PathVariable Long id) {
-		employeeService.deleteEmployee(id);
-		return "Delete Employee Successfully!";
+	public ResponseEntity<?> deleteEmployee(@PathVariable Long id) {
+		try {
+			employeeService.deleteEmployee(id);
+			Map<String, String> response = new HashMap<>();
+			response.put("message", "Employee deleted successfully.");
+			return ResponseEntity.ok(response);
+		} catch (EmployeeNotFoundException ex) {
+			throw ex;
+		} catch (Exception ex) {
+			throw new RuntimeException("Error deleting employee: " + ex.getMessage());
+		}
 	}
 
 	@GetMapping("/getEmp")
-	public ResponseEntity<Map<String, Object>> getAllEmployees(@RequestParam(defaultValue = "0") int page,
+	public ResponseEntity<?> getEmployees(@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "5") int size, @RequestParam(defaultValue = "id") String sortBy) {
 
-		Page<Employee> employeePage = employeeService.getEmployeesSorted(page, size, sortBy);
+		try {
+			Page<Employee> employeePage = employeeService.getEmployeesSorted(page, size, sortBy);
 
-		Map<String, Object> response = new HashMap<>();
-		response.put("employees", employeePage.getContent());
-		response.put("currentPage", employeePage.getNumber());
-		response.put("totalItems", employeePage.getTotalElements());
-		response.put("totalPages", employeePage.getTotalPages());
+			if (employeePage.isEmpty()) {
+				throw new EmployeeNotFoundException("No employees found for the given page and sort options.");
+			}
+			Map<String, Object> response = new HashMap<>();
+			response.put("employees", employeePage.getContent());
+			response.put("currentPage", employeePage.getNumber());
+			response.put("totalItems", employeePage.getTotalElements());
+			response.put("totalPages", employeePage.getTotalPages());
 
-		return new ResponseEntity<>(response, HttpStatus.OK);
+			return ResponseEntity.ok(response);
+		} catch (EmployeeNotFoundException ex) {
+			throw ex;
+		} catch (Exception ex) {
+			throw new RuntimeException("Error fetching paginated employees: " + ex.getMessage());
+		}
 	}
 }
