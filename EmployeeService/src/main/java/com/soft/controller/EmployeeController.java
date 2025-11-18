@@ -1,8 +1,15 @@
 package com.soft.controller;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -16,9 +23,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.soft.entity.Employee;
 import com.soft.exception.EmployeeNotFoundException;
 import com.soft.service.EmployeeService;
+import com.soft.service.ExcelExportService;
+
 import jakarta.validation.Valid;
 
 @RestController
@@ -26,6 +36,9 @@ public class EmployeeController {
 
 	@Autowired
 	private EmployeeService employeeService;
+	
+	@Autowired
+	private ExcelExportService excelExportService;
 
 	@PostMapping("/msg")
 	public String getMsg() {
@@ -131,4 +144,51 @@ public class EmployeeController {
 			throw new RuntimeException("Error fetching paginated employees: " + ex.getMessage());
 		}
 	}
+
+
+	@GetMapping("/export/excel")
+	public ResponseEntity<String> exportEmployeesToExcel() {
+	    List<Employee> employees = employeeService.fetchAllEmployees();
+	    if (employees.isEmpty()) {
+	        return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No employees found to export.");
+	    }
+
+	    String message = excelExportService.exportEmployeesToExcel(employees);
+	    return ResponseEntity.ok(message);
+	}
+	
+	@GetMapping("/download/excel")
+	public ResponseEntity<byte[]> downloadEmployeesExcel() {
+	    List<Employee> employees = employeeService.fetchAllEmployees();
+
+	    try (Workbook workbook = new XSSFWorkbook()) {
+	        Sheet sheet = workbook.createSheet("Employees");
+
+	        Row header = sheet.createRow(0);
+	        header.createCell(0).setCellValue("ID");
+	        header.createCell(1).setCellValue("Name");
+
+	        int rowNum = 1;
+	        for (Employee emp : employees) {
+	            Row row = sheet.createRow(rowNum++);
+	            row.createCell(0).setCellValue(emp.getId());
+	            row.createCell(1).setCellValue(emp.getName());
+	        }
+
+	        sheet.autoSizeColumn(0);
+	        sheet.autoSizeColumn(1);
+
+	        ByteArrayOutputStream out = new ByteArrayOutputStream();
+	        workbook.write(out);
+
+	        return ResponseEntity.ok()
+	                .header("Content-Disposition", "attachment; filename=employees.xlsx")
+	                .body(out.toByteArray());
+
+	    } catch (IOException e) {
+	        return ResponseEntity.internalServerError().build();
+	    }
+	}
+
+
 }

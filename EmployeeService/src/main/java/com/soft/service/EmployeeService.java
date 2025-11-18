@@ -8,19 +8,41 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import com.soft.entity.Employee;
 import com.soft.repository.EmployeeRepository;
+
 
 @Service
 public class EmployeeService {
 
 	@Autowired
 	private EmployeeRepository employeeRepository;
+	
+	  @Autowired
+	    private EmailService emailService;
+
+	    @Autowired
+	    private WhatsAppService whatsappService;
 
 	public Employee createEmployee(Employee employee) {
-		return employeeRepository.save(employee);
+		 Employee savedEmployee = employeeRepository.save(employee);
+
+	        // Email Notification
+	        emailService.sendEmployeeRegistrationEmail(
+	                "awadhutyenkar@gmail.com",    
+	                savedEmployee.getName()
+	        );
+
+	        // WhatsApp notification
+	        whatsappService.sendMessage(
+	                "+91 8459682058",   // Country code + number
+	                "Welcome " + savedEmployee.getName() + "! Your employee account is created."
+	        );
+
+	        return savedEmployee;
 	}
 
 	public List<Employee> fetchAllEmployees() {
@@ -31,17 +53,26 @@ public class EmployeeService {
 		return employeeRepository.findById(id);
 	}
 
-	public Employee updateEmployeeById(Long id, Employee Employee) {
-		Employee EmployeeUpdateId = employeeRepository.findById(id).orElseThrow();
-		EmployeeUpdateId.setName(Employee.getName());
-		return EmployeeUpdateId;
+	public Employee updateEmployeeById(Long id, Employee employeeDetails) {
+	    Employee employee = employeeRepository.findById(id)
+	            .orElseThrow(() -> new RuntimeException("Employee not found with id " + id));
+
+	    employee.setName(employeeDetails.getName());
+	    // Save updated record
+	    return employeeRepository.save(employee);
 	}
 
-	public Employee updateEmployeePartially(Long id, Employee EmployeeDetails) {
-		Employee EmployeeId = employeeRepository.findById(id).orElseThrow();
-		EmployeeId.setName(EmployeeDetails.getName());
-		return EmployeeId;
+
+	public Employee updateEmployeePartially(Long id, Employee employeeDetails) {
+	    Employee employee = employeeRepository.findById(id)
+	            .orElseThrow(() -> new RuntimeException("Employee not found with id " + id));
+
+	    if (employeeDetails.getName() != null)
+	        employee.setName(employeeDetails.getName());
+
+	    return employeeRepository.save(employee);
 	}
+
 
 	public void deleteEmployee(Long id) {
 		employeeRepository.deleteById(id);
